@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
     "Manage clients, projects, proposals, invoices, and payments in one straightforward workspace built for freelancers and small agencies.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>

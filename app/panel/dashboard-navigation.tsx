@@ -14,10 +14,10 @@ import {
 import { useState } from "react";
 
 const navigationItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Clients", icon: Users },
-  { label: "Projects", icon: BriefcaseBusiness },
-  { label: "Invoices", icon: ReceiptText },
+  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Clients", href: "panel/clients", icon: Users },
+  { label: "Projects", href: "/projects", icon: BriefcaseBusiness },
+  { label: "Invoices", href: "/invoices", icon: ReceiptText },
 ];
 
 export default function DashboardNavigation() {
