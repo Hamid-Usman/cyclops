@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import { type ReactNode } from "react";
 import { Geist_Mono } from "next/font/google";
+import AuthGuard from "./auth-guard";
 import DashboardNavigation from "./dashboard-navigation";
 
 const geistMono = Geist_Mono({
@@ -19,7 +20,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen w-full flex-col md:flex-row">
       <DashboardNavigation />
       <div className="mx-auto mt-4 flex w-full max-w-[1600px] min-w-0 flex-1 flex-col px-4 sm:px-6 lg:px-10">
-        {children}
+        <AuthGuard>{children}</AuthGuard>
       </div>
     </div>
   );

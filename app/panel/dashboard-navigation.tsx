@@ -1,28 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BriefcaseBusiness,
   ChevronRight,
+  FileText,
   LayoutDashboard,
+  LogOut,
   Menu,
   ReceiptText,
+  ArrowLeftRight,
   Users,
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useMyClientQuery } from "@/services/clients";
+import { useAuthStore } from "@/stores/auth-store";
 
 const navigationItems = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Clients", href: "panel/clients", icon: Users },
-  { label: "Projects", href: "/projects", icon: BriefcaseBusiness },
-  { label: "Invoices", href: "/invoices", icon: ReceiptText },
+  { label: "Dashboard", href: "/panel", icon: LayoutDashboard },
+  { label: "Clients", href: "/panel/clients", icon: Users },
+  { label: "Projects", href: "/panel/projects", icon: BriefcaseBusiness },
+  { label: "Proposals", href: "/panel/proposals", icon: FileText },
+  { label: "Invoices", href: "/panel/invoices", icon: ReceiptText },
 ];
 
 export default function DashboardNavigation() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const signOut = useAuthStore((state) => state.signOut);
+  // Users who are also someone's client can switch to the client screen.
+  const isClient = Boolean(useMyClientQuery().data);
+
+  function handleSignOut() {
+    signOut();
+    router.replace("/auth/signin");
+  }
 
   function renderNavigationItems(onNavigate?: () => void) {
     return navigationItems.map(({ label, href, icon: Icon }) => {
@@ -76,7 +92,7 @@ export default function DashboardNavigation() {
       <header className="sticky top-0 z-30 border-b border-border bg-sidebar shadow-sm backdrop-blur md:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <Link
-            href="/dashboard"
+            href="/panel"
             className="flex items-center gap-2 text-lg font-semibold tracking-tight"
           >
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
@@ -104,12 +120,34 @@ export default function DashboardNavigation() {
           aria-hidden={!menuOpen}
           inert={!menuOpen}
           className={`overflow-hidden border-t border-border/70 bg-sidebar transition-[max-height,opacity] duration-200 ease-out motion-reduce:transition-none ${
-            menuOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+            menuOpen ? "max-h-[28rem] opacity-100" : "max-h-0 opacity-0"
           }`}
         >
           <nav aria-label="Mobile dashboard navigation">
             <ul className="flex flex-col gap-1 px-4 py-3">
               {renderNavigationItems(() => setMenuOpen(false))}
+              {isClient && (
+                <li>
+                  <Link
+                    href="/client"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+                  >
+                    <ArrowLeftRight aria-hidden="true" size={18} />
+                    <span>Client view</span>
+                  </Link>
+                </li>
+              )}
+              <li>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+                >
+                  <LogOut aria-hidden="true" size={18} />
+                  <span>Sign out</span>
+                </button>
+              </li>
             </ul>
           </nav>
         </div>
@@ -117,7 +155,7 @@ export default function DashboardNavigation() {
 
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col gap-6 bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
         <Link
-          href="/dashboard"
+          href="/panel"
           aria-label="Cyclops dashboard"
           className="flex items-center gap-3 px-2 text-lg font-semibold tracking-tight"
         >
@@ -133,7 +171,33 @@ export default function DashboardNavigation() {
           <ul className="flex flex-col gap-1">{renderNavigationItems()}</ul>
         </nav>
 
-        <div className="mt-auto rounded-xl border border-sidebar-border/50 bg-sidebar-accent p-4">
+        {isClient && (
+          <Link
+            href="/client"
+            className="mt-auto flex items-center gap-2 rounded-lg border border-sidebar-border/50 px-3 py-2 text-xs font-medium hover:bg-sidebar-accent"
+          >
+            <ArrowLeftRight aria-hidden="true" size={14} />
+            Switch to client view
+          </Link>
+        )}
+
+        <div className={`${isClient ? "" : "mt-auto "}flex items-center justify-between gap-2 px-2`}>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{user?.displayName}</p>
+            <p className="truncate text-xs text-sidebar-foreground/70">{user?.email}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            title="Sign out"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg hover:bg-sidebar-accent"
+          >
+            <LogOut aria-hidden="true" size={18} />
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-sidebar-border/50 bg-sidebar-accent p-4">
           <p className="text-sm font-semibold">Free plan</p>
           <div
             className="mt-3 h-1.5 overflow-hidden rounded-full bg-sidebar-border/50"

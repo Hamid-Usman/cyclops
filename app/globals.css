@@ -140,3 +140,22 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* Printing an open proposal or invoice prints just that dialog. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  [role="dialog"],
+  [role="dialog"] * {
+    visibility: visible;
+  }
+  [role="dialog"] {
+    position: absolute;
+    inset: 0;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    box-shadow: none;
+  }
+}

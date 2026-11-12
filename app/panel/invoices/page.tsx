@@ -1,486 +1,381 @@
 "use client";
 
-import {
-  ArrowUpRight,
-  CheckCheck,
-  CircleDollarSign,
-  Clock3,
-  FileText,
-  ReceiptText,
-  TrendingUp,
-  X,
-} from "lucide-react";
+import { CheckCheck, Clock3, FileText, Plus, ReceiptText, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { apiErrorMessage } from "@/services/api";
+import { useClientsQuery } from "@/services/clients";
+import {
+  useCreateInvoiceMutation,
+  useDeleteInvoiceMutation,
+  useInvoiceActionMutation,
+  useInvoicesQuery,
+} from "@/services/invoices";
+import { useProjectsQuery } from "@/services/projects";
+import type { Invoice } from "@/services/types";
+import {
+  Field,
+  formatDate,
+  formatMoney,
+  FormActions,
+  inputClass,
+  ListState,
+  Modal,
+  orNull,
+  PageHeader,
+  Panel,
+  primaryButtonClass,
+  smallButtonClass,
+  StatCards,
+  StatusBadge,
+} from "../ui";
 
-const summaryStats = [
-  { label: "Total billed", value: "₦1.8M", detail: "Across 28 invoices", icon: CircleDollarSign },
-  { label: "Collected", value: "₦1.3M", detail: "71% of total", icon: CheckCheck },
-  { label: "Outstanding", value: "₦420K", detail: "6 invoices open", icon: ReceiptText },
-  { label: "Due this month", value: "₦260K", detail: "3 reminders scheduled", icon: Clock3 },
-];
+interface LineDraft {
+  key: number;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+}
 
-const quickActions = [
-  { type: "create-invoice", label: "Create invoice", icon: ReceiptText },
-  { type: "send-reminder", label: "Send reminder", icon: FileText },
-  { type: "export-report", label: "Export report", icon: TrendingUp },
-  { type: "record-payment", label: "Record payment", icon: CheckCheck },
-] as const;
+let nextLineKey = 1;
+const newLine = (): LineDraft => ({ key: nextLineKey++, description: "", quantity: "1", unitPrice: "" });
 
-const initialInvoices = [
-  {
-    number: "INV-2048",
-    client: "Aculite Ltd",
-    project: "Brand refresh",
-    issued: "14 Aug",
-    due: "26 Sep",
-    amount: "₦180,000",
-    status: "Paid",
-    accent: "bg-emerald-500/10 text-emerald-600",
-  },
-  {
-    number: "INV-1967",
-    client: "Northwind Studio",
-    project: "Website renewal",
-    issued: "04 Sep",
-    due: "19 Sep",
-    amount: "₦210,000",
-    status: "Due soon",
-    accent: "bg-amber-500/10 text-amber-600",
-  },
-  {
-    number: "INV-1951",
-    client: "Horizon Labs",
-    project: "CRM setup",
-    issued: "20 Aug",
-    due: "10 Sep",
-    amount: "₦160,000",
-    status: "Overdue",
-    accent: "bg-red-500/10 text-red-600",
-  },
-  {
-    number: "INV-1924",
-    client: "Sapphire Works",
-    project: "Landing page sprint",
-    issued: "08 Sep",
-    due: "22 Sep",
-    amount: "₦95,000",
-    status: "Draft",
-    accent: "bg-sky-500/10 text-sky-600",
-  },
-];
-
-const initialActivity = [
-  { title: "Payment received", detail: "Aculite Ltd settled invoice INV-2048 in full", time: "Today", icon: CheckCheck },
-  { title: "Reminder sent", detail: "Northwind Studio received a payment follow-up", time: "Yesterday", icon: FileText },
-  { title: "Invoice approved", detail: "Sapphire Works approved the final draft invoice", time: "2 days ago", icon: ReceiptText },
-];
-
-const defaultFormState = {
-  number: "",
-  client: "",
-  project: "",
-  amount: "",
-  due: "",
-  status: "Paid",
-};
-
-type ActionType = (typeof quickActions)[number]["type"];
-type FormState = typeof defaultFormState;
-
-function getFormFields(action: ActionType) {
-  switch (action) {
-    case "create-invoice":
-      return [
-        { key: "number", label: "Invoice number", type: "text", placeholder: "INV-2050" },
-        { key: "client", label: "Client", type: "text", placeholder: "Aculite Ltd" },
-        { key: "project", label: "Project", type: "text", placeholder: "Brand refresh" },
-        { key: "amount", label: "Amount", type: "text", placeholder: "₦180,000" },
-        { key: "due", label: "Due date", type: "text", placeholder: "26 Sep" },
-      ] as const;
-    case "send-reminder":
-      return [
-        { key: "client", label: "Client", type: "text", placeholder: "Northwind Studio" },
-        { key: "amount", label: "Amount", type: "text", placeholder: "₦210,000" },
-        { key: "status", label: "Reminder type", type: "select", options: ["Payment reminder", "Follow-up", "Urgent notice"] },
-      ] as const;
-    case "export-report":
-      return [
-        { key: "status", label: "Report type", type: "select", options: ["Monthly summary", "Aged receivables", "Collections report"] },
-        { key: "due", label: "Date range", type: "text", placeholder: "Sep 2026" },
-      ] as const;
-    case "record-payment":
-      return [
-        { key: "client", label: "Client", type: "text", placeholder: "Aculite Ltd" },
-        { key: "amount", label: "Paid amount", type: "text", placeholder: "₦180,000" },
-        { key: "status", label: "Status", type: "select", options: ["Paid", "Partially paid", "Overdue"] },
-      ] as const;
-    default:
-      return [] as const;
+// Totals per currency, e.g. "$1,040.06 · €200.00".
+function sumByCurrency(invoices: Invoice[]) {
+  const totals = new Map<string, number>();
+  for (const invoice of invoices) {
+    totals.set(invoice.currency, (totals.get(invoice.currency) ?? 0) + invoice.total);
   }
+  if (totals.size === 0) return formatMoney(0);
+  return [...totals].map(([currency, total]) => formatMoney(total, currency)).join(" · ");
 }
 
 export default function Page() {
-  const [invoiceList, setInvoiceList] = useState(initialInvoices);
-  const [activityFeed, setActivityFeed] = useState(initialActivity);
-  const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
-  const [formValues, setFormValues] = useState<FormState>(defaultFormState);
+  const invoices = useInvoicesQuery();
+  const projects = useProjectsQuery();
+  const clients = useClientsQuery();
+  const createInvoice = useCreateInvoiceMutation();
+  const deleteInvoice = useDeleteInvoiceMutation();
+  const invoiceAction = useInvoiceActionMutation();
+  const [creating, setCreating] = useState(false);
+  const [lines, setLines] = useState<LineDraft[]>([newLine()]);
+  const [rowError, setRowError] = useState<string | null>(null);
 
-  const openAction = (action: ActionType) => {
-    setPendingAction(action);
-    setFormValues(defaultFormState);
-  };
+  const list = invoices.data ?? [];
+  const billable = (projects.data ?? []).filter(
+    (project) => project.status === "active" || project.status === "completed",
+  );
+  const projectName = (id: string) => projects.data?.find((project) => project.id === id)?.name ?? "—";
+  const clientName = (id: string) =>
+    clients.data?.find((client) => client.id === id)?.user.displayName ?? "—";
+  const sent = list.filter((invoice) => invoice.status === "sent");
+  const loading = invoices.isLoading ? "…" : null;
 
-  const handleFieldChange = (field: keyof FormState, value: string) => {
-    setFormValues((current) => ({ ...current, [field]: value }));
-  };
+  const lineTotal = (line: LineDraft) =>
+    Math.round((Number(line.quantity) || 0) * (Number(line.unitPrice) || 0) * 100) / 100;
+  const subtotal = lines.reduce((sum, line) => sum + lineTotal(line), 0);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  function updateLine(key: number, field: keyof Omit<LineDraft, "key">, value: string) {
+    setLines((current) => current.map((line) => (line.key === key ? { ...line, [field]: value } : line)));
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!pendingAction) {
-      return;
+    const form = new FormData(event.currentTarget);
+    const taxRate = String(form.get("taxRate")).trim();
+    try {
+      await createInvoice.mutateAsync({
+        projectId: String(form.get("projectId")),
+        title: String(form.get("title")).trim(),
+        description: orNull(form.get("description")),
+        notes: orNull(form.get("notes")),
+        currency: String(form.get("currency")).trim().toUpperCase(),
+        taxRate: taxRate === "" ? 0 : Number(taxRate),
+        dueDate: orNull(form.get("dueDate")),
+        lineItems: lines.map((line) => ({
+          description: line.description.trim(),
+          quantity: Number(line.quantity),
+          unitPrice: Number(line.unitPrice),
+        })),
+      });
+      setCreating(false);
+    } catch {
+      // Shown from createInvoice.error.
     }
+  }
 
-    const action = pendingAction;
-
-    if (action === "create-invoice") {
-      const numberValue = formValues.number.trim() || "INV-2050";
-      const clientName = formValues.client.trim() || "Aculite Ltd";
-      const projectName = formValues.project.trim() || "New project";
-      const amountValue = formValues.amount.trim() || "₦0";
-      const dueDate = formValues.due.trim() || "30 Sep";
-
-      const newInvoice = {
-        number: numberValue,
-        client: clientName,
-        project: projectName,
-        issued: "Today",
-        due: dueDate,
-        amount: amountValue,
-        status: "Draft",
-        accent: "bg-sky-500/10 text-sky-600",
-      };
-
-      setInvoiceList((current) => [newInvoice, ...current]);
-      setActivityFeed((current) => [
-        {
-          title: "Invoice created",
-          detail: `${numberValue} was prepared for ${clientName}`,
-          time: "Just now",
-          icon: ReceiptText,
-        },
-        ...current,
-      ].slice(0, 4));
+  async function act(invoice: Invoice, action: "send" | "mark-paid" | "void") {
+    const prompts = {
+      send: `Send "${invoice.title}"? It gets a number and can no longer be edited.`,
+      "mark-paid": invoice.paymentReportedAt
+        ? `The client reported paying "${invoice.title}"${invoice.paymentReference ? ` (ref. ${invoice.paymentReference})` : ""}. Mark it as paid now?`
+        : `Mark "${invoice.title}" as paid today?`,
+      void: `Void ${invoice.number ?? "this invoice"}? This can't be undone.`,
+    };
+    if (!window.confirm(prompts[action])) return;
+    setRowError(null);
+    try {
+      await invoiceAction.mutateAsync({ id: invoice.id, action });
+    } catch (error) {
+      setRowError(apiErrorMessage(error, "Couldn't update the invoice."));
     }
+  }
 
-    if (action === "send-reminder") {
-      const clientName = formValues.client.trim() || "Northwind Studio";
-      const amountValue = formValues.amount.trim() || "₦0";
-      const statusValue = formValues.status || "Payment reminder";
-
-      setActivityFeed((current) => [
-        {
-          title: statusValue,
-          detail: `${clientName} was reminded about ${amountValue}`,
-          time: "Just now",
-          icon: FileText,
-        },
-        ...current,
-      ].slice(0, 4));
+  async function remove(invoice: Invoice) {
+    if (!window.confirm(`Delete the draft "${invoice.title}"?`)) return;
+    setRowError(null);
+    try {
+      await deleteInvoice.mutateAsync(invoice.id);
+    } catch (error) {
+      setRowError(apiErrorMessage(error, "Couldn't delete the invoice."));
     }
-
-    if (action === "export-report") {
-      const reportType = formValues.status || "Monthly summary";
-      const dateRange = formValues.due.trim() || "Sep 2026";
-
-      setActivityFeed((current) => [
-        {
-          title: "Report exported",
-          detail: `${reportType} for ${dateRange} was prepared`,
-          time: "Just now",
-          icon: TrendingUp,
-        },
-        ...current,
-      ].slice(0, 4));
-    }
-
-    if (action === "record-payment") {
-      const clientName = formValues.client.trim() || "Aculite Ltd";
-      const amountValue = formValues.amount.trim() || "₦0";
-      const nextStatus = formValues.status || "Paid";
-
-      setInvoiceList((current) =>
-        current.map((invoice) =>
-          invoice.client.toLowerCase() === clientName.toLowerCase()
-            ? {
-                ...invoice,
-                status: nextStatus,
-                accent:
-                  nextStatus === "Paid"
-                    ? "bg-emerald-500/10 text-emerald-600"
-                    : nextStatus === "Partially paid"
-                      ? "bg-amber-500/10 text-amber-600"
-                      : "bg-red-500/10 text-red-600",
-              }
-            : invoice,
-        ),
-      );
-
-      setActivityFeed((current) => [
-        {
-          title: "Payment recorded",
-          detail: `${clientName} recorded a payment of ${amountValue}`,
-          time: "Just now",
-          icon: CheckCheck,
-        },
-        ...current,
-      ].slice(0, 4));
-    }
-
-    setPendingAction(null);
-    setFormValues(defaultFormState);
-  };
+  }
 
   return (
     <main className="flex flex-col gap-8 pb-8">
-      <header className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Invoices
+      <PageHeader
+        eyebrow="Invoices"
+        title="Invoice List"
+        action={
+          <button
+            type="button"
+            onClick={() => {
+              createInvoice.reset();
+              setLines([newLine()]);
+              setCreating(true);
+            }}
+            className={primaryButtonClass}
+          >
+            <ReceiptText aria-hidden="true" size={18} />
+            Create invoice
+          </button>
+        }
+      />
+
+      <StatCards
+        stats={[
+          { label: "Outstanding", value: loading ?? sumByCurrency(sent), detail: `${sent.length} sent, awaiting payment`, icon: Clock3 },
+          {
+            label: "Overdue",
+            value: loading ?? list.filter((invoice) => invoice.isOverdue).length,
+            detail: "Past their due date",
+            icon: ReceiptText,
+          },
+          {
+            label: "Collected",
+            value: loading ?? sumByCurrency(list.filter((invoice) => invoice.status === "paid")),
+            detail: "Paid invoices",
+            icon: CheckCheck,
+          },
+          {
+            label: "Drafts",
+            value: loading ?? list.filter((invoice) => invoice.status === "draft").length,
+            detail: "Not sent yet",
+            icon: FileText,
+          },
+        ]}
+      />
+
+      <Panel title="Invoices" description="Invoices are for active or completed projects.">
+        {rowError && (
+          <p role="alert" className="px-5 pt-4 text-sm text-destructive">
+            {rowError}
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Billing overview</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => openAction("create-invoice")}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-        >
-          <ReceiptText aria-hidden="true" size={18} />
-          Create invoice
-        </button>
-      </header>
-
-      <section aria-label="Invoice overview" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {summaryStats.map(({ label, value, detail, icon: Icon }) => (
-          <article key={label} className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-            <div className="flex items-center gap-4 p-5">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon aria-hidden="true" size={22} />
-              </span>
-              <div>
-                <p className="text-sm text-muted-foreground">{label}</p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-              </div>
-            </div>
-            <p className="border-t border-border/70 bg-muted/50 px-5 py-2.5 text-xs text-muted-foreground">
-              {detail}
-            </p>
-          </article>
-        ))}
-      </section>
-
-      <section className="flex flex-col gap-4" aria-labelledby="invoice-quick-actions-heading">
-        <div>
-          <h2 id="invoice-quick-actions-heading" className="text-lg font-semibold tracking-tight">
-            Quick actions
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">Keep billing moving with a few clicks.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {quickActions.map(({ type, label, icon: Icon }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => openAction(type)}
-              className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm font-medium shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <Icon aria-hidden="true" className="text-primary" size={20} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold">Invoice list</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Monitor payment timelines and invoice status.</p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-2.5 py-1.5 text-sm text-primary">
-            <TrendingUp aria-hidden="true" size={14} />
-            +9% collected this month
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-muted/60 text-muted-foreground">
-              <tr>
-                <th className="px-5 py-3 font-medium">Invoice</th>
-                <th className="px-5 py-3 font-medium">Client</th>
-                <th className="px-5 py-3 font-medium">Project</th>
-                <th className="px-5 py-3 font-medium">Issued</th>
-                <th className="px-5 py-3 font-medium">Due</th>
-                <th className="px-5 py-3 font-medium">Amount</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/80">
-              {invoiceList.map(({ number, client, project, issued, due, amount, status, accent }) => (
-                <tr key={number} className="align-middle">
-                  <td className="px-5 py-4">
-                    <div>
-                      <p className="font-medium text-foreground">{number}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Tax invoice</p>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground">{client}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{project}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{issued}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{due}</td>
-                  <td className="px-5 py-4 font-medium text-foreground">{amount}</td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${accent}`}>
-                      {status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
-                    >
-                      View
-                      <ArrowUpRight aria-hidden="true" size={14} />
-                    </button>
-                  </td>
+        )}
+        <ListState
+          isLoading={invoices.isLoading}
+          error={invoices.error ? apiErrorMessage(invoices.error, "Couldn't load invoices.") : null}
+          isEmpty={list.length === 0}
+          emptyText="No invoices yet."
+        />
+        {list.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-muted/60 text-muted-foreground">
+                <tr>
+                  <th className="px-5 py-3 font-medium">Invoice</th>
+                  <th className="px-5 py-3 font-medium">Client</th>
+                  <th className="px-5 py-3 font-medium">Project</th>
+                  <th className="px-5 py-3 font-medium">Issued</th>
+                  <th className="px-5 py-3 font-medium">Due</th>
+                  <th className="px-5 py-3 font-medium">Total</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 text-right font-medium">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_0.6fr]">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold">Payment activity</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Recurring billing updates across the last 7 days.</p>
-            </div>
-            <button className="rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">
-              Export
-            </button>
+              </thead>
+              <tbody className="divide-y divide-border/80">
+                {list.map((invoice) => (
+                  <tr key={invoice.id} className="align-middle">
+                    <td className="px-5 py-4">
+                      <p className="font-medium text-foreground">{invoice.number ?? "Draft"}</p>
+                      <p className="text-xs text-muted-foreground">{invoice.title}</p>
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground">{clientName(invoice.clientId)}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{projectName(invoice.projectId)}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{formatDate(invoice.issueDate)}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{formatDate(invoice.dueDate)}</td>
+                    <td className="px-5 py-4 font-medium tabular-nums">{formatMoney(invoice.total, invoice.currency)}</td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={invoice.isOverdue ? "overdue" : invoice.status} />
+                      {invoice.status === "sent" && invoice.paymentReportedAt && (
+                        <p className="mt-1 max-w-[14rem] text-xs text-sky-700">
+                          Client reports paid {formatDate(invoice.paymentReportedAt)}
+                          {invoice.paymentReference ? ` · ref. ${invoice.paymentReference}` : ""}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-2">
+                        {invoice.status === "draft" && (
+                          <>
+                            <button type="button" className={smallButtonClass} onClick={() => act(invoice, "send")}>
+                              Send
+                            </button>
+                            <button type="button" className={smallButtonClass} onClick={() => remove(invoice)}>
+                              <Trash2 aria-hidden="true" size={14} />
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        {invoice.status === "sent" && (
+                          <>
+                            <button type="button" className={smallButtonClass} onClick={() => act(invoice, "mark-paid")}>
+                              Mark paid
+                            </button>
+                            <button type="button" className={smallButtonClass} onClick={() => act(invoice, "void")}>
+                              Void
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+      </Panel>
 
-          <div className="mt-5 space-y-4">
-            {activityFeed.map(({ title, detail, time, icon: Icon }) => (
-              <div key={`${title}-${time}`} className="flex items-start gap-3 rounded-lg border border-border/80 bg-muted/30 p-3">
-                <span className="mt-0.5 flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Icon aria-hidden="true" size={16} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+      {creating && (
+        <Modal title="Create invoice" eyebrow="Invoices" onClose={() => setCreating(false)} wide>
+          <form className="space-y-4" onSubmit={handleCreate}>
+            <Field
+              label="Project"
+              hint={billable.length === 0 && !projects.isLoading ? "No active or completed projects yet. A project becomes active when its client accepts a proposal." : undefined}
+            >
+              <select name="projectId" required defaultValue="" className={inputClass}>
+                <option value="" disabled>
+                  Choose a project
+                </option>
+                {billable.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name} — {clientName(project.clientId)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Title">
+              <input name="title" required maxLength={200} pattern=".*\S.*" placeholder="Deposit for website redesign" className={inputClass} />
+            </Field>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-foreground">Line items</legend>
+              {lines.map((line, index) => (
+                <div key={line.key} className="grid grid-cols-[1fr_5rem_7rem_auto] items-end gap-2">
+                  <input
+                    aria-label={`Line ${index + 1} description`}
+                    required
+                    maxLength={500}
+                    pattern=".*\S.*"
+                    placeholder="Description"
+                    value={line.description}
+                    onChange={(event) => updateLine(line.key, "description", event.target.value)}
+                    className={inputClass}
+                  />
+                  <input
+                    aria-label={`Line ${index + 1} quantity`}
+                    type="number"
+                    required
+                    min={0.01}
+                    max={99999999.99}
+                    step={0.01}
+                    value={line.quantity}
+                    onChange={(event) => updateLine(line.key, "quantity", event.target.value)}
+                    className={inputClass}
+                  />
+                  <input
+                    aria-label={`Line ${index + 1} unit price`}
+                    type="number"
+                    required
+                    min={0}
+                    max={9999999999.99}
+                    step={0.01}
+                    placeholder="Unit price"
+                    value={line.unitPrice}
+                    onChange={(event) => updateLine(line.key, "unitPrice", event.target.value)}
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove line ${index + 1}`}
+                    disabled={lines.length === 1}
+                    onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}
+                    className="flex size-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  >
+                    <Trash2 aria-hidden="true" size={16} />
+                  </button>
                 </div>
-                <time className="shrink-0 text-xs text-muted-foreground">{time}</time>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <aside className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-base font-semibold">Upcoming due dates</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Accounts receivable and follow-up priorities.</p>
-
-          <ul className="mt-5 space-y-3">
-            {[
-              { client: "Northwind Studio", amount: "₦210,000", due: "Due in 2 days" },
-              { client: "Sapphire Works", amount: "₦95,000", due: "Due in 4 days" },
-              { client: "Horizon Labs", amount: "₦160,000", due: "Overdue by 2 days" },
-            ].map(({ client, amount, due }) => (
-              <li key={client} className="rounded-lg border border-border/80 bg-muted/30 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{client}</p>
-                  <span className="text-sm font-semibold text-foreground">{amount}</span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">{due}</p>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      </section>
-
-      {pendingAction ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl">
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                  Quick action
-                </p>
-                <h3 className="mt-2 text-xl font-semibold tracking-tight">
-                  {quickActions.find((action) => action.type === pendingAction)?.label}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPendingAction(null)}
-                className="flex size-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
-                aria-label="Close quick action"
-              >
-                <X aria-hidden="true" size={18} />
-              </button>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              {getFormFields(pendingAction).map((field) => (
-                <label key={field.key} className="block space-y-2 text-sm">
-                  <span className="font-medium text-foreground">{field.label}</span>
-                  {field.type === "select" ? (
-                    <select
-                      value={formValues[field.key as keyof FormState]}
-                      onChange={(event) => handleFieldChange(field.key as keyof FormState, event.target.value)}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground outline-none transition-colors focus:border-primary"
-                    >
-                      {field.options?.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type}
-                      value={formValues[field.key as keyof FormState]}
-                      onChange={(event) => handleFieldChange(field.key as keyof FormState, event.target.value)}
-                      placeholder={field.placeholder}
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-                    />
-                  )}
-                </label>
               ))}
-
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => setPendingAction(null)}
-                  className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                  disabled={lines.length >= 100}
+                  onClick={() => setLines((current) => [...current, newLine()])}
+                  className={smallButtonClass}
                 >
-                  Cancel
+                  <Plus aria-hidden="true" size={14} />
+                  Add line
                 </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                >
-                  Save action
-                </button>
+                <p className="text-sm text-muted-foreground">
+                  Subtotal <span className="font-semibold text-foreground tabular-nums">{subtotal.toFixed(2)}</span>
+                </p>
               </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+            </fieldset>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Currency" hint="3-letter code">
+                <input
+                  name="currency"
+                  required
+                  defaultValue="USD"
+                  maxLength={3}
+                  pattern="[A-Za-z]{3}"
+                  className={`${inputClass} uppercase`}
+                />
+              </Field>
+              <Field label="Tax rate (%)">
+                <input name="taxRate" type="number" min={0} max={100} step={0.01} defaultValue={0} className={inputClass} />
+              </Field>
+              <Field label="Due date" hint="Default: 14 days after sending">
+                <input name="dueDate" type="date" className={inputClass} />
+              </Field>
+            </div>
+            <Field label="Description (optional)">
+              <textarea name="description" rows={2} maxLength={10000} className={inputClass} />
+            </Field>
+            <Field label="Notes (optional)" hint="e.g. payment instructions">
+              <textarea name="notes" rows={2} maxLength={10000} className={inputClass} />
+            </Field>
+
+            <FormActions
+              onCancel={() => setCreating(false)}
+              pending={createInvoice.isPending}
+              submitLabel="Save draft"
+              error={createInvoice.error ? apiErrorMessage(createInvoice.error, "Couldn't create the invoice.") : null}
+            />
+          </form>
+        </Modal>
+      )}
     </main>
   );
 }
