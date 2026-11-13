@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 const navItems = [
   { label: "Platform", href: "#platform" },
@@ -117,11 +118,11 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-4">
-              <a href="#pricing" className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline">
+              <Link href={'/auth/signin'} className="hidden text-sm font-medium text-muted-foreground hover:text-foreground sm:inline">
                 Sign in
-              </a>
+              </Link>
               <a
-                href="/dashboard"
+                href="/auth/signup"
                 className="rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5"
               >
                 Get started <span aria-hidden="true">↗</span>
@@ -148,12 +149,12 @@ export default function Home() {
                 Spend less time juggling tools and more time doing the work you love.
               </p>
               <div className="mt-7 flex flex-wrap justify-center gap-3">
-                <a
-                  href="#pricing"
+                <Link
+                  href="/auth/signup"
                   className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition-transform hover:-translate-y-0.5"
                 >
                   Start for free <span aria-hidden="true">→</span>
-                </a>
+                </Link>
                 <a
                   href="#platform"
                   className="rounded-full border border-border bg-background px-5 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -306,9 +307,9 @@ export default function Home() {
               <BrandMark dark />
               <h2 className="mt-5 text-3xl font-semibold tracking-[-0.05em] sm:text-5xl">Your clients. Your projects. Your whole business.</h2>
               <p className="mx-auto mt-4 max-w-[530px] leading-7 text-primary-foreground/80">Bring the moving pieces together and make more room for the work that matters.</p>
-              <a href="mailto:hello@Cyclops.app" className="mt-7 inline-flex rounded-full bg-primary-foreground px-5 py-3 text-sm font-semibold text-primary transition-transform hover:-translate-y-0.5">
+              <Link href="/auth/signup" className="mt-7 inline-flex rounded-full bg-primary-foreground px-5 py-3 text-sm font-semibold text-primary transition-transform hover:-translate-y-0.5">
                 Start your free workspace <span className="ml-2" aria-hidden="true">→</span>
-              </a>
+              </Link>
             </div>
           </section>
         </main>

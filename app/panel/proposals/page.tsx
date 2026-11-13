@@ -239,7 +239,7 @@ export default function Page() {
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
                         <button type="button" className={smallButtonClass} onClick={() => setViewingId(proposal.id)}>
-                          Views
+                          View
                         </button>
                         {proposal.status === "draft" && (
                           <>
