@@ -139,7 +139,7 @@ export default function Page() {
               <thead className="bg-muted/60 text-muted-foreground">
                 <tr>
                   <th className="px-5 py-3 font-medium">Project</th>
-                  <th className="px-5 py-3 font-medium">Clienssst</th>
+                  <th className="px-5 py-3 font-medium">Client</th>
                   <th className="px-5 py-3 font-medium">Status</th>
                   <th className="px-5 py-3 font-medium">Start</th>
                   <th className="px-5 py-3 font-medium">Due</th>

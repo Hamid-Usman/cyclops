@@ -81,10 +81,10 @@ const plans = [
   },
 ];
 
-function BrandMark() {
+export function BrandMark({ dark = false }: { dark?: boolean }) {
   return (
-    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-      C
+    <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${dark ? 'bg-white' : 'bg-primary'} text-sm font-bold text-primary-foreground`}>
+      <Image alt="" src={require('../public/icon.png')} width={25} height={25} />
     </span>
   );
 }
@@ -303,7 +303,7 @@ export default function Home() {
           <section className="relative w-full overflow-hidden rounded-[30px] bg-primary px-5 py-10 text-primary-foreground sm:px-10 sm:py-14">
             <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 h-72 w-72 rounded-full bg-primary-foreground opacity-10 blur-3xl" />
             <div className="relative mx-auto max-w-[700px] text-center">
-              <BrandMark />
+              <BrandMark dark />
               <h2 className="mt-5 text-3xl font-semibold tracking-[-0.05em] sm:text-5xl">Your clients. Your projects. Your whole business.</h2>
               <p className="mx-auto mt-4 max-w-[530px] leading-7 text-primary-foreground/80">Bring the moving pieces together and make more room for the work that matters.</p>
               <a href="mailto:hello@Cyclops.app" className="mt-7 inline-flex rounded-full bg-primary-foreground px-5 py-3 text-sm font-semibold text-primary transition-transform hover:-translate-y-0.5">

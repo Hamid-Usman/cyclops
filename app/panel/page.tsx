@@ -17,9 +17,9 @@ import { formatDate, formatMoney, ListState } from "./ui";
 
 const quickActions = [
     { label: "Add client", href: "/panel/clients", icon: UserPlus },
-    { label: "Start a project", href: "/panel/projects", icon: FolderPlus },
-    { label: "Create invoice", href: "/panel/invoices", icon: ReceiptText },
     { label: "Send a proposal", href: "/panel/proposals", icon: FileText },
+    { label: "Start a project", href: "/panel/projects", icon: FolderPlus },
+    { label: "Create invoice", href: "/panel/invoices", icon: ReceiptText }
 ];
 
 function dueLabel(daysUntilDue: number) {

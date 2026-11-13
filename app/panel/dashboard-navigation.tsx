@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { useMyClientQuery } from "@/services/clients";
 import { useAuthStore } from "@/stores/auth-store";
+import Image from "next/image";
 
 const navigationItems = [
   { label: "Dashboard", href: "/panel", icon: LayoutDashboard },
@@ -96,7 +97,7 @@ export default function DashboardNavigation() {
             className="flex items-center gap-2 text-lg font-semibold tracking-tight"
           >
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-              C
+              <Image alt="" src={require('../../public/icon.png')} width={25} height={25} />
             </span>
             <span className="text-white">Cyclops</span>
           </Link>
@@ -160,7 +161,8 @@ export default function DashboardNavigation() {
           className="flex items-center gap-3 px-2 text-lg font-semibold tracking-tight"
         >
           <span className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-bold text-sidebar-primary-foreground">
-            C
+            
+              <Image alt="" src={require('../../public/icon.png')} width={25} height={25} />
           </span>
           <span>Cyclops</span>
         </Link>
