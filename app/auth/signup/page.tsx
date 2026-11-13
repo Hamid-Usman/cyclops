@@ -5,7 +5,7 @@ import SignUpForm from "./sign-up-form";
 export default function SignUpPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <div className="w-full max-w-md rounded-md border-2 border-b-4 border-r-4 border-b-primary/40 border-r-primary/40 bg-white p-6 shadow-sm">
+      <div className="w-full max-w-md border-2 border-b-4 border-r-4 border-b-primary/40 border-r-primary/40 bg-white p-6 shadow-sm">
         <div className="mb-6 flex items-center gap-3">
           <BrandMark />
           <div>
